@@ -22,7 +22,7 @@
 #define grbl_h
 
 // Grbl versioning system
-#define GRBL_VERSION "0.9j"
+#define GRBL_VERSION "0.9 promicro"
 #define GRBL_VERSION_BUILD "20160726"
 
 // Define standard libraries used by Grbl.
@@ -38,6 +38,9 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#include "deps/LUFA/Drivers/Board/Board.h"
+#include <LUFA/Drivers/USB/USB.h>
+
 // Define the Grbl system include files. NOTE: Do not alter organization.
 #include "config.h"
 #include "nuts_bolts.h"
@@ -45,18 +48,18 @@
 #include "system.h"
 #include "defaults.h"
 #include "cpu_map.h"
-#include "coolant_control.h"
+//#include "coolant_control.h"
 #include "eeprom.h"
 #include "gcode.h"
 #include "limits.h"
 #include "motion_control.h"
 #include "planner.h"
 #include "print.h"
-#include "probe.h"
+//#include "probe.h"
 #include "protocol.h"
 #include "report.h"
 #include "serial.h"
-#include "spindle_control.h"
+//#include "spindle_control.h"
 #include "stepper.h"
 
 #endif

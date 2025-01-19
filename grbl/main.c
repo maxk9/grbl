@@ -25,6 +25,32 @@
 // Declare system global variable structure
 system_t sys; 
 
+//heard beat
+ISR(TIMER3_OVF_vect) {
+    static uint8_t state = 0;
+
+    if (state == 1) {
+        TCNT3 = 45000;
+        LEDs_TurnOffLEDs(LEDS_LED1);
+    }
+    else if (state < 6) {
+        TCNT3 = 60000;
+        LEDs_ToggleLEDs(LEDS_LED1);
+    }
+    else state = 0;
+
+    ++state;
+}
+
+void setup_led_heard_beat() {
+    LEDs_Init();
+    LEDs_TurnOffLEDs(LEDS_ALL_LEDS);
+    //use tmr3
+    //clk/1024  15.625 KHz
+    //clk/256  62.5 KHz 1.048 sec ovr 0xFFFF
+    TCCR3B = (1<<CS32);
+    TIMSK3 |= 1<<TOIE3;
+}
 
 int main(void)
 {
@@ -32,11 +58,13 @@ int main(void)
   serial_init();   // Setup serial baud rate and interrupts
   settings_init(); // Load Grbl settings from EEPROM
   stepper_init();  // Configure stepper pins and interrupt timers
-  system_init();   // Configure pinout pins and pin-change interrupt
+//  system_init();   // Configure pinout pins and pin-change interrupt
   
   memset(&sys, 0, sizeof(system_t));  // Clear all system variables
+  setup_led_heard_beat(); //setup heard beat
   sys.abort = true;   // Set abort to complete initialization
   sei(); // Enable interrupts
+  pen_init();
 
   // Check for power-up and set system alarm if homing is enabled to force homing cycle
   // by setting Grbl's alarm state. Alarm locks out all g-code commands, including the
@@ -64,13 +92,11 @@ int main(void)
     // Reset Grbl primary systems.
     serial_reset_read_buffer(); // Clear serial read buffer
     gc_init(); // Set g-code parser to default state
-    spindle_init();
-    coolant_init();
+//    coolant_init();
     limits_init(); 
-    probe_init();
+//    probe_init();
     plan_reset(); // Clear block buffer and planner variables
     st_reset(); // Clear stepper subsystem variables.
-
     // Sync cleared gcode and planner positions to current system position.
     plan_sync_position();
     gc_sync_position();

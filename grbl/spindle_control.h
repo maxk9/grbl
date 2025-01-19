@@ -24,14 +24,21 @@
 
 
 // Initializes spindle pins and hardware PWM, if enabled.
-void spindle_init();
+void pen_init();
 
 // Sets spindle direction and spindle rpm via PWM, if enabled.
-void spindle_run(uint8_t direction, float rpm);
+void spindle_run(uint8_t direction, uint8_t rpm);
 
-void spindle_set_state(uint8_t state, float rpm);
+//void pen_set_state(pen_state_t state);
 
 // Kills spindle.
 void spindle_stop();
+
+//enum pen_state_t
+//{
+//    PEN_ZERO = 0,
+//    PEN_UP = 0,
+//    PEN_DOWN = 0,
+//};
 
 #endif

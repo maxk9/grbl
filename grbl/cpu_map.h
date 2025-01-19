@@ -37,6 +37,10 @@
   #include "cpu_map/cpu_map_atmega2560.h"
 #endif
 
+#ifdef CPU_MAP_ATMEGA32U4
+    #include "cpu_map/cpu_map_atmega32u4.h"
+#endif
+
 /* 
 #ifdef CPU_MAP_CUSTOM_PROC
   // For a custom pin map or different processor, copy and edit one of the available cpu

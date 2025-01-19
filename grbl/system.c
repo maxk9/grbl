@@ -21,60 +21,60 @@
 #include "grbl.h"
 
 
-void system_init() 
-{
-  CONTROL_DDR &= ~(CONTROL_MASK); // Configure as input pins
-  #ifdef DISABLE_CONTROL_PIN_PULL_UP
-    CONTROL_PORT &= ~(CONTROL_MASK); // Normal low operation. Requires external pull-down.
-  #else
-    CONTROL_PORT |= CONTROL_MASK;   // Enable internal pull-up resistors. Normal high operation.
-  #endif
-  CONTROL_PCMSK |= CONTROL_MASK;  // Enable specific pins of the Pin Change Interrupt
-  PCICR |= (1 << CONTROL_INT);   // Enable Pin Change Interrupt
-}
+//void system_init()
+//{
+//  CONTROL_DDR &= ~(CONTROL_MASK); // Configure as input pins
+//  #ifdef DISABLE_CONTROL_PIN_PULL_UP
+//    CONTROL_PORT &= ~(CONTROL_MASK); // Normal low operation. Requires external pull-down.
+//  #else
+//    CONTROL_PORT |= CONTROL_MASK;   // Enable internal pull-up resistors. Normal high operation.
+//  #endif
+//  CONTROL_PCMSK |= CONTROL_MASK;  // Enable specific pins of the Pin Change Interrupt
+//  PCICR |= (1 << CONTROL_INT);   // Enable Pin Change Interrupt
+//}
 
 
 // Pin change interrupt for pin-out commands, i.e. cycle start, feed hold, and reset. Sets
 // only the realtime command execute variable to have the main program execute these when 
 // its ready. This works exactly like the character-based realtime commands when picked off
 // directly from the incoming serial data stream.
-ISR(CONTROL_INT_vect) 
-{
-  uint8_t pin = (CONTROL_PIN & CONTROL_MASK);
-  #ifndef INVERT_ALL_CONTROL_PINS
-    pin ^= CONTROL_INVERT_MASK;
-  #endif
-  // Enter only if any CONTROL pin is detected as active.
-  if (pin) { 
-    if (bit_istrue(pin,bit(RESET_BIT))) {
-      mc_reset();
-    } else if (bit_istrue(pin,bit(CYCLE_START_BIT))) {
-      bit_true(sys_rt_exec_state, EXEC_CYCLE_START);
-    #ifndef ENABLE_SAFETY_DOOR_INPUT_PIN
-      } else if (bit_istrue(pin,bit(FEED_HOLD_BIT))) {
-        bit_true(sys_rt_exec_state, EXEC_FEED_HOLD); 
-    #else
-      } else if (bit_istrue(pin,bit(SAFETY_DOOR_BIT))) {
-        bit_true(sys_rt_exec_state, EXEC_SAFETY_DOOR);
-    #endif
-    } 
-  }
-}
+//ISR(CONTROL_INT_vect)
+//{
+//  uint8_t pin = (CONTROL_PIN & CONTROL_MASK);
+//  #ifndef INVERT_ALL_CONTROL_PINS
+//    pin ^= CONTROL_INVERT_MASK;
+//  #endif
+//  // Enter only if any CONTROL pin is detected as active.
+//  if (pin) {
+//    if (bit_istrue(pin,bit(RESET_BIT))) {
+//      mc_reset();
+//    } else if (bit_istrue(pin,bit(CYCLE_START_BIT))) {
+//      bit_true(sys_rt_exec_state, EXEC_CYCLE_START);
+//    #ifndef ENABLE_SAFETY_DOOR_INPUT_PIN
+//      } else if (bit_istrue(pin,bit(FEED_HOLD_BIT))) {
+//        bit_true(sys_rt_exec_state, EXEC_FEED_HOLD);
+//    #else
+//      } else if (bit_istrue(pin,bit(SAFETY_DOOR_BIT))) {
+//        bit_true(sys_rt_exec_state, EXEC_SAFETY_DOOR);
+//    #endif
+//    }
+//  }
+//}
 
 
 // Returns if safety door is ajar(T) or closed(F), based on pin state.
-uint8_t system_check_safety_door_ajar()
-{
-  #ifdef ENABLE_SAFETY_DOOR_INPUT_PIN
-    #ifdef INVERT_CONTROL_PIN
-      return(bit_istrue(CONTROL_PIN,bit(SAFETY_DOOR_BIT)));
-    #else
-      return(bit_isfalse(CONTROL_PIN,bit(SAFETY_DOOR_BIT)));
-    #endif
-  #else
-    return(false); // Input pin not enabled, so just return that it's closed.
-  #endif
-}
+//uint8_t system_check_safety_door_ajar()
+//{
+//  #ifdef ENABLE_SAFETY_DOOR_INPUT_PIN
+//    #ifdef INVERT_CONTROL_PIN
+//      return(bit_istrue(CONTROL_PIN,bit(SAFETY_DOOR_BIT)));
+//    #else
+//      return(bit_isfalse(CONTROL_PIN,bit(SAFETY_DOOR_BIT)));
+//    #endif
+//  #else
+//    return(false); // Input pin not enabled, so just return that it's closed.
+//  #endif
+//}
 
 
 // Executes user startup script, if stored.
@@ -138,10 +138,10 @@ uint8_t system_execute_line(char *line)
             report_feedback_message(MESSAGE_ALARM_UNLOCK);
             sys.state = STATE_IDLE;
             // Don't run startup script. Prevents stored moves in startup from causing accidents.
-            if (system_check_safety_door_ajar()) { // Check safety door switch before returning.
-              bit_true(sys_rt_exec_state, EXEC_SAFETY_DOOR);
-              protocol_execute_realtime(); // Enter safety door mode.
-            }
+//            if (system_check_safety_door_ajar()) { // Check safety door switch before returning.
+//              bit_true(sys_rt_exec_state, EXEC_SAFETY_DOOR);
+//              protocol_execute_realtime(); // Enter safety door mode.
+//            }
           } // Otherwise, no effect.
           break;                   
     //  case 'J' : break;  // Jogging methods
@@ -174,11 +174,10 @@ uint8_t system_execute_line(char *line)
             // Only perform homing if Grbl is idle or lost.
             
             // TODO: Likely not required.
-            if (system_check_safety_door_ajar()) { // Check safety door switch before homing.
-              bit_true(sys_rt_exec_state, EXEC_SAFETY_DOOR);
-              protocol_execute_realtime(); // Enter safety door mode.
-            }
-            
+//            if (system_check_safety_door_ajar()) { // Check safety door switch before homing.
+//              bit_true(sys_rt_exec_state, EXEC_SAFETY_DOOR);
+//              protocol_execute_realtime(); // Enter safety door mode.
+//            }
             
             mc_homing_cycle(); 
             if (!sys.abort) {  // Execute startup scripts after successful homing.
@@ -224,12 +223,12 @@ uint8_t system_execute_line(char *line)
                 report_startup_line(helper_var,line);
               }
             }
-            break;
           } else { // Store startup line [IDLE Only] Prevents motion during ALARM.
             if (sys.state != STATE_IDLE) { return(STATUS_IDLE_ERROR); } // Store only when idle.
             helper_var = true;  // Set helper_var to flag storing method. 
             // No break. Continues into default: to read remaining command characters.
           }
+          break;
         default :  // Storing setting methods [IDLE/ALARM]
           if(!read_float(line, &char_counter, &parameter)) { return(STATUS_BAD_NUMBER_FORMAT); }
           if(line[char_counter++] != '=') { return(STATUS_INVALID_STATEMENT); }
@@ -268,9 +267,10 @@ float system_convert_axis_steps_to_mpos(int32_t *steps, uint8_t idx)
       pos = (float)system_convert_corexy_to_x_axis_steps(steps) / settings.steps_per_mm[A_MOTOR];
     } else if (idx==Y_AXIS) {
       pos = (float)system_convert_corexy_to_y_axis_steps(steps) / settings.steps_per_mm[B_MOTOR];
-    } else {
-      pos = steps[idx]/settings.steps_per_mm[idx];
     }
+//    else {
+//      pos = steps[idx]/settings.steps_per_mm[idx];
+//    }
   #else
     pos = steps[idx]/settings.steps_per_mm[idx];
   #endif

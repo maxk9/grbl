@@ -290,7 +290,9 @@ ISR(TIMER1_COMPA_vect)
   #ifdef STEP_PULSE_DELAY
     st.step_bits = (STEP_PORT & ~STEP_MASK) | st.step_outbits; // Store out_bits to prevent overwriting.
   #else  // Normal operation
-    STEP_PORT = (STEP_PORT & ~STEP_MASK) | st.step_outbits;
+    //STEP_PORT = (STEP_PORT & ~STEP_MASK) | st.step_outbits;
+    STEPPING_MOTA = (STEPPING_MOTA & ~(1 << A_STEP_BIT)) | (st.step_outbits & 1 ? 1 << A_STEP_BIT : 0);
+    STEPPING_MOTB = (STEPPING_MOTB & ~(1 << B_STEP_BIT)) | (st.step_outbits & 2 ? 1 << B_STEP_BIT : 0);
   #endif  
 
   // Enable step pulse reset timer so that The Stepper Port Reset Interrupt can reset the signal after
@@ -332,7 +334,7 @@ ISR(TIMER1_COMPA_vect)
         // With AMASS enabled, adjust Bresenham axis increment counters according to AMASS level.
         st.steps[X_AXIS] = st.exec_block->steps[X_AXIS] >> st.exec_segment->amass_level;
         st.steps[Y_AXIS] = st.exec_block->steps[Y_AXIS] >> st.exec_segment->amass_level;
-        st.steps[Z_AXIS] = st.exec_block->steps[Z_AXIS] >> st.exec_segment->amass_level;
+        //st.steps[Z_AXIS] = st.exec_block->steps[Z_AXIS] >> st.exec_segment->amass_level;
       #endif
       
     } else {
@@ -345,7 +347,7 @@ ISR(TIMER1_COMPA_vect)
   
   
   // Check probing state.
-  probe_state_monitor();
+  //probe_state_monitor();
    
   // Reset step out bits.
   st.step_outbits = 0; 
@@ -357,7 +359,7 @@ ISR(TIMER1_COMPA_vect)
     st.counter_x += st.exec_block->steps[X_AXIS];
   #endif  
   if (st.counter_x > st.exec_block->step_event_count) {
-    st.step_outbits |= (1<<X_STEP_BIT);
+    st.step_outbits |= 1;
     st.counter_x -= st.exec_block->step_event_count;
     if (st.exec_block->direction_bits & (1<<X_DIRECTION_BIT)) { sys.position[X_AXIS]--; }
     else { sys.position[X_AXIS]++; }
@@ -368,22 +370,22 @@ ISR(TIMER1_COMPA_vect)
     st.counter_y += st.exec_block->steps[Y_AXIS];
   #endif    
   if (st.counter_y > st.exec_block->step_event_count) {
-    st.step_outbits |= (1<<Y_STEP_BIT);
+    st.step_outbits |= 2;
     st.counter_y -= st.exec_block->step_event_count;
     if (st.exec_block->direction_bits & (1<<Y_DIRECTION_BIT)) { sys.position[Y_AXIS]--; }
     else { sys.position[Y_AXIS]++; }
   }
-  #ifdef ADAPTIVE_MULTI_AXIS_STEP_SMOOTHING
-    st.counter_z += st.steps[Z_AXIS];
-  #else
-    st.counter_z += st.exec_block->steps[Z_AXIS];
-  #endif  
-  if (st.counter_z > st.exec_block->step_event_count) {
-    st.step_outbits |= (1<<Z_STEP_BIT);
-    st.counter_z -= st.exec_block->step_event_count;
-    if (st.exec_block->direction_bits & (1<<Z_DIRECTION_BIT)) { sys.position[Z_AXIS]--; }
-    else { sys.position[Z_AXIS]++; }
-  }  
+//  #ifdef ADAPTIVE_MULTI_AXIS_STEP_SMOOTHING
+//    st.counter_z += st.steps[Z_AXIS];
+//  #else
+//    st.counter_z += st.exec_block->steps[Z_AXIS];
+//  #endif
+//  if (st.counter_z > st.exec_block->step_event_count) {
+//    st.step_outbits |= 4;
+//    st.counter_z -= st.exec_block->step_event_count;
+//    if (st.exec_block->direction_bits & (1<<Z_DIRECTION_BIT)) { sys.position[Z_AXIS]--; }
+//    else { sys.position[Z_AXIS]++; }
+//  }
 
   // During a homing cycle, lock out and prevent desired axes from moving.
   if (sys.state == STATE_HOMING) { st.step_outbits &= sys.homing_axis_lock; }   
@@ -415,8 +417,9 @@ ISR(TIMER1_COMPA_vect)
 ISR(TIMER0_OVF_vect)
 {
   // Reset stepping pins (leave the direction pins)
-  STEP_PORT = (STEP_PORT & ~STEP_MASK) | (step_port_invert_mask & STEP_MASK); 
-  TCCR0B = 0; // Disable Timer0 to prevent re-entering this interrupt when it's not needed. 
+    STEPPING_MOTA = STEPPING_MOTA & ~(1 << A_STEP_BIT) | (step_port_invert_mask & 1 ? 1 << A_STEP_BIT : 0);
+    STEPPING_MOTB = STEPPING_MOTB & ~(1 << B_STEP_BIT) | (step_port_invert_mask & 2 ? 1 << B_STEP_BIT : 0);
+    TCCR0B = 0; // Disable Timer0 to prevent re-entering this interrupt when it's not needed.
 }
 #ifdef STEP_PULSE_DELAY
   // This interrupt is used only when STEP_PULSE_DELAY is enabled. Here, the step pulse is
@@ -463,7 +466,8 @@ void st_reset()
   st_generate_step_dir_invert_masks();
       
   // Initialize step and direction port pins.
-  STEP_PORT = (STEP_PORT & ~STEP_MASK) | step_port_invert_mask;
+  STEPPING_MOTA = STEPPING_MOTA & ~(1 << A_STEP_BIT) ; //TODO add invert mask
+  STEPPING_MOTB = STEPPING_MOTB & ~(1 << B_STEP_BIT) ;
   DIRECTION_PORT = (DIRECTION_PORT & ~DIRECTION_MASK) | dir_port_invert_mask;
 }
 
@@ -472,9 +476,14 @@ void st_reset()
 void stepper_init()
 {
   // Configure step and direction interface pins
-  STEP_DDR |= STEP_MASK;
-  STEPPERS_DISABLE_DDR |= 1<<STEPPERS_DISABLE_BIT;
-  DIRECTION_DDR |= DIRECTION_MASK;
+    STEPPING_DDR_MOTA |= 1<<A_STEP_BIT;
+    STEPPING_DDR_MOTB |= 1<<B_STEP_BIT;
+    STEPPING_DDRZ |= 1<<Z_STEP_BIT;
+    STEPPING_MOTA = (STEPPING_MOTA & ~(1<<A_STEP_BIT));
+    STEPPING_MOTB = (STEPPING_MOTB & ~(1<<B_STEP_BIT));
+    STEPPING_PORTZ = (STEPPING_PORTZ & ~(1<<Z_STEP_BIT));
+    STEPPERS_DISABLE_DDR |= 1<<STEPPERS_DISABLE_BIT;
+    DIRECTION_DDR |= DIRECTION_MASK;
 
   // Configure Timer 1: Stepper Driver Interrupt
   TCCR1B &= ~(1<<WGM13); // waveform generation = 0100 = CTC
@@ -522,7 +531,7 @@ void st_update_plan_block_parameters()
 void st_prep_buffer()
 {
 
-  if (sys.state & (STATE_HOLD|STATE_MOTION_CANCEL|STATE_SAFETY_DOOR)) { 
+  if (sys.state & (STATE_HOLD|STATE_MOTION_CANCEL)) {
     // Check if we still need to generate more segments for a motion suspend.
     if (prep.current_speed == 0.0) { return; } // Nothing to do. Bail.
   }
@@ -550,7 +559,7 @@ void st_prep_buffer()
         #ifndef ADAPTIVE_MULTI_AXIS_STEP_SMOOTHING
           st_prep_block->steps[X_AXIS] = pl_block->steps[X_AXIS];
           st_prep_block->steps[Y_AXIS] = pl_block->steps[Y_AXIS];
-          st_prep_block->steps[Z_AXIS] = pl_block->steps[Z_AXIS];
+          //st_prep_block->steps[Z_AXIS] = pl_block->steps[Z_AXIS];
           st_prep_block->step_event_count = pl_block->step_event_count;
         #else
           // With AMASS enabled, simply bit-shift multiply all Bresenham data by the max AMASS 
@@ -558,7 +567,7 @@ void st_prep_buffer()
           // If the original data is divided, we can lose a step from integer roundoff.
           st_prep_block->steps[X_AXIS] = pl_block->steps[X_AXIS] << MAX_AMASS_LEVEL;
           st_prep_block->steps[Y_AXIS] = pl_block->steps[Y_AXIS] << MAX_AMASS_LEVEL;
-          st_prep_block->steps[Z_AXIS] = pl_block->steps[Z_AXIS] << MAX_AMASS_LEVEL;
+          //st_prep_block->steps[Z_AXIS] = pl_block->steps[Z_AXIS] << MAX_AMASS_LEVEL;
           st_prep_block->step_event_count = pl_block->step_event_count << MAX_AMASS_LEVEL;
         #endif
         
@@ -569,7 +578,7 @@ void st_prep_buffer()
         
         prep.dt_remainder = 0.0; // Reset for new planner block
 
-        if (sys.state & (STATE_HOLD|STATE_MOTION_CANCEL|STATE_SAFETY_DOOR)) {
+        if (sys.state & (STATE_HOLD|STATE_MOTION_CANCEL)) {
           // Override planner block entry speed and enforce deceleration during feed hold.
           prep.current_speed = prep.exit_speed; 
           pl_block->entry_speed_sqr = prep.exit_speed*prep.exit_speed; 
@@ -585,7 +594,7 @@ void st_prep_buffer()
       */
       prep.mm_complete = 0.0; // Default velocity profile complete at 0.0mm from end of block.
       float inv_2_accel = 0.5/pl_block->acceleration;
-      if (sys.state & (STATE_HOLD|STATE_MOTION_CANCEL|STATE_SAFETY_DOOR)) { // [Forced Deceleration to Zero Velocity]
+      if (sys.state & (STATE_HOLD|STATE_MOTION_CANCEL)) { // [Forced Deceleration to Zero Velocity]
         // Compute velocity profile parameters for a feed hold in-progress. This profile overrides
         // the planner block profile, enforcing a deceleration to zero speed.
         prep.ramp_type = RAMP_DECEL;
@@ -744,7 +753,7 @@ void st_prep_buffer()
     
     // Bail if we are at the end of a feed hold and don't have a step to execute.
     if (prep_segment->n_step == 0) {
-      if (sys.state & (STATE_HOLD|STATE_MOTION_CANCEL|STATE_SAFETY_DOOR)) {
+      if (sys.state & (STATE_HOLD|STATE_MOTION_CANCEL)) {
         // Less than one step to decelerate to zero speed, but already very close. AMASS 
         // requires full steps to execute. So, just bail.
         prep.current_speed = 0.0; // NOTE: (=0.0) Used to indicate completed segment calcs for hold.
@@ -841,7 +850,7 @@ void st_prep_buffer()
 #ifdef REPORT_REALTIME_RATE
   float st_get_realtime_rate()
   {
-     if (sys.state & (STATE_CYCLE | STATE_HOMING | STATE_HOLD | STATE_MOTION_CANCEL | STATE_SAFETY_DOOR)){
+     if (sys.state & (STATE_CYCLE | STATE_HOMING | STATE_HOLD | STATE_MOTION_CANCEL)){
        return prep.current_speed;
      }
     return 0.0f;

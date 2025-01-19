@@ -20,182 +20,106 @@
 */
 
 #include "grbl.h"
+#include "Descriptors.h"
+#include <avr/sleep.h>
+#include <avr/power.h>
 
+/** Standard file stream for the CDC interface when set up, so that the virtual CDC COM port can be
+ *  used like any regular character stream in the C APIs
+ */
+static FILE USBSerialStream;
 
-uint8_t serial_rx_buffer[RX_BUFFER_SIZE];
-uint8_t serial_rx_buffer_head = 0;
-volatile uint8_t serial_rx_buffer_tail = 0;
-
-uint8_t serial_tx_buffer[TX_BUFFER_SIZE];
-uint8_t serial_tx_buffer_head = 0;
-volatile uint8_t serial_tx_buffer_tail = 0;
-
-
-#ifdef ENABLE_XONXOFF
-  volatile uint8_t flow_ctrl = XON_SENT; // Flow control state variable
-#endif
-  
-
-// Returns the number of bytes used in the RX serial buffer.
-uint8_t serial_get_rx_buffer_count()
+/** LUFA CDC Class driver interface configuration and state information. This structure is
+ *  passed to all CDC Class driver functions, so that multiple instances of the same class
+ *  within a device can be differentiated from one another.
+ */
+USB_ClassInfo_CDC_Device_t VirtualSerial_CDC_Interface =
 {
-  uint8_t rtail = serial_rx_buffer_tail; // Copy to limit multiple calls to volatile
-  if (serial_rx_buffer_head >= rtail) { return(serial_rx_buffer_head-rtail); }
-  return (RX_BUFFER_SIZE - (rtail-serial_rx_buffer_head));
-}
-
-
-// Returns the number of bytes used in the TX serial buffer.
-// NOTE: Not used except for debugging and ensuring no TX bottlenecks.
-uint8_t serial_get_tx_buffer_count()
-{
-  uint8_t ttail = serial_tx_buffer_tail; // Copy to limit multiple calls to volatile
-  if (serial_tx_buffer_head >= ttail) { return(serial_tx_buffer_head-ttail); }
-  return (TX_BUFFER_SIZE - (ttail-serial_tx_buffer_head));
-}
-
+    .Config =
+    {
+        .ControlInterfaceNumber   = INTERFACE_ID_CDC_CCI,
+        .DataINEndpoint           =
+        {
+            .Address          = CDC_TX_EPADDR,
+            .Size             = CDC_TXRX_EPSIZE,
+            .Banks            = 1,
+        },
+        .DataOUTEndpoint =
+        {
+            .Address          = CDC_RX_EPADDR,
+            .Size             = CDC_TXRX_EPSIZE,
+            .Banks            = 1,
+        },
+        .NotificationEndpoint =
+        {
+            .Address          = CDC_NOTIFICATION_EPADDR,
+            .Size             = CDC_NOTIFICATION_EPSIZE,
+            .Banks            = 1,
+        },
+    },
+};
 
 void serial_init()
 {
-  // Set baud rate
-  #if BAUD_RATE < 57600
-    uint16_t UBRR0_value = ((F_CPU / (8L * BAUD_RATE)) - 1)/2 ;
-    UCSR0A &= ~(1 << U2X0); // baud doubler off  - Only needed on Uno XXX
-  #else
-    uint16_t UBRR0_value = ((F_CPU / (4L * BAUD_RATE)) - 1)/2;
-    UCSR0A |= (1 << U2X0);  // baud doubler on for high baud rates, i.e. 115200
-  #endif
-  UBRR0H = UBRR0_value >> 8;
-  UBRR0L = UBRR0_value;
-            
-  // enable rx and tx
-  UCSR0B |= 1<<RXEN0;
-  UCSR0B |= 1<<TXEN0;
-	
-  // enable interrupt on complete reception of a byte
-  UCSR0B |= 1<<RXCIE0;
-	  
-  // defaults to 8-bit, no parity, 1 stop bit
+    /* Disable watchdog if enabled by bootloader/fuses */
+    MCUSR &= ~(1 << WDRF);
+    wdt_disable();
+
+    /* Disable clock division */
+    clock_prescale_set(clock_div_1);
+    USB_Init();
+
+    /* Create a regular character stream for the interface so that it can be used with the stdio.h functions */
+    CDC_Device_CreateStream(&VirtualSerial_CDC_Interface, &USBSerialStream);
+    sei();
 }
 
+//extern uint8_t cnts_isr_tmr4;
 
-// Writes one byte to the TX serial buffer. Called by main program.
-// TODO: Check if we can speed this up for writing strings, rather than single bytes.
+uint8_t serial_tick(uint8_t *c) {
+    uint8_t bytesAvailable;
+
+    CDC_Device_USBTask(&VirtualSerial_CDC_Interface);
+    USB_USBTask();
+
+    bytesAvailable = CDC_Device_BytesReceived(&VirtualSerial_CDC_Interface);
+    if (bytesAvailable) {
+        *c = CDC_Device_ReceiveByte(&VirtualSerial_CDC_Interface);
+        switch ((char)*c) {
+        case CMD_STATUS_REPORT: bit_true_atomic(sys_rt_exec_state, EXEC_STATUS_REPORT); return 0; // Set as true
+        case CMD_CYCLE_START:   bit_true_atomic(sys_rt_exec_state, EXEC_CYCLE_START); return 0; // Set as true
+        case CMD_FEED_HOLD:     bit_true_atomic(sys_rt_exec_state, EXEC_FEED_HOLD); return 0; // Set as true
+        case CMD_SAFETY_DOOR:   //bit_true_atomic(sys_rt_exec_state, EXEC_SAFETY_DOOR); // Set as true
+            return 0;
+        case CMD_RESET:         mc_reset(); return 0; // Call motion control reset routine.
+        default: return bytesAvailable;
+        }
+    }
+    return 0;
+}
+
 void serial_write(uint8_t data) {
-  // Calculate next head
-  uint8_t next_head = serial_tx_buffer_head + 1;
-  if (next_head == TX_BUFFER_SIZE) { next_head = 0; }
-
-  // Wait until there is space in the buffer
-  while (next_head == serial_tx_buffer_tail) { 
-    // TODO: Restructure st_prep_buffer() calls to be executed here during a long print.    
-    if (sys_rt_exec_state & EXEC_RESET) { return; } // Only check for abort to avoid an endless loop.
-  }
-
-  // Store data and advance head
-  serial_tx_buffer[serial_tx_buffer_head] = data;
-  serial_tx_buffer_head = next_head;
-  
-  // Enable Data Register Empty Interrupt to make sure tx-streaming is running
-  UCSR0B |=  (1 << UDRIE0); 
+    fputc(data, &USBSerialStream);
 }
 
-
-// Data Register Empty Interrupt handler
-ISR(SERIAL_UDRE)
+void serial_reset_read_buffer()
 {
-  uint8_t tail = serial_tx_buffer_tail; // Temporary serial_tx_buffer_tail (to optimize for volatile)
-  
-  #ifdef ENABLE_XONXOFF
-    if (flow_ctrl == SEND_XOFF) { 
-      UDR0 = XOFF_CHAR; 
-      flow_ctrl = XOFF_SENT; 
-    } else if (flow_ctrl == SEND_XON) { 
-      UDR0 = XON_CHAR; 
-      flow_ctrl = XON_SENT; 
-    } else
-  #endif
-  { 
-    // Send a byte from the buffer	
-    UDR0 = serial_tx_buffer[tail];
-  
-    // Update tail position
-    tail++;
-    if (tail == TX_BUFFER_SIZE) { tail = 0; }
-  
-    serial_tx_buffer_tail = tail;
-  }
-  
-  // Turn off Data Register Empty Interrupt to stop tx-streaming if this concludes the transfer
-  if (tail == serial_tx_buffer_head) { UCSR0B &= ~(1 << UDRIE0); }
+    CDC_Device_Flush(&VirtualSerial_CDC_Interface);
 }
 
-
-// Fetches the first byte in the serial read buffer. Called by main program.
-uint8_t serial_read()
+/** Event handler for the library USB Configuration Changed event. */
+void EVENT_USB_Device_ConfigurationChanged(void)
 {
-  uint8_t tail = serial_rx_buffer_tail; // Temporary serial_rx_buffer_tail (to optimize for volatile)
-  if (serial_rx_buffer_head == tail) {
-    return SERIAL_NO_DATA;
-  } else {
-    uint8_t data = serial_rx_buffer[tail];
-    
-    tail++;
-    if (tail == RX_BUFFER_SIZE) { tail = 0; }
-    serial_rx_buffer_tail = tail;
-
-    #ifdef ENABLE_XONXOFF
-      if ((serial_get_rx_buffer_count() < RX_BUFFER_LOW) && flow_ctrl == XOFF_SENT) { 
-        flow_ctrl = SEND_XON;
-        UCSR0B |=  (1 << UDRIE0); // Force TX
-      }
-    #endif
-    
-    return data;
-  }
+    CDC_Device_ConfigureEndpoints(&VirtualSerial_CDC_Interface);
 }
 
-
-ISR(SERIAL_RX)
+/** Event handler for the library USB Control Request reception event. */
+void EVENT_USB_Device_ControlRequest(void)
 {
-  uint8_t data = UDR0;
-  uint8_t next_head;
-  
-  // Pick off realtime command characters directly from the serial stream. These characters are
-  // not passed into the buffer, but these set system state flag bits for realtime execution.
-  switch (data) {
-    case CMD_STATUS_REPORT: bit_true_atomic(sys_rt_exec_state, EXEC_STATUS_REPORT); break; // Set as true
-    case CMD_CYCLE_START:   bit_true_atomic(sys_rt_exec_state, EXEC_CYCLE_START); break; // Set as true
-    case CMD_FEED_HOLD:     bit_true_atomic(sys_rt_exec_state, EXEC_FEED_HOLD); break; // Set as true
-    case CMD_SAFETY_DOOR:   bit_true_atomic(sys_rt_exec_state, EXEC_SAFETY_DOOR); break; // Set as true
-    case CMD_RESET:         mc_reset(); break; // Call motion control reset routine.
-    default: // Write character to buffer    
-      next_head = serial_rx_buffer_head + 1;
-      if (next_head == RX_BUFFER_SIZE) { next_head = 0; }
-    
-      // Write data to buffer unless it is full.
-      if (next_head != serial_rx_buffer_tail) {
-        serial_rx_buffer[serial_rx_buffer_head] = data;
-        serial_rx_buffer_head = next_head;    
-        
-        #ifdef ENABLE_XONXOFF
-          if ((serial_get_rx_buffer_count() >= RX_BUFFER_FULL) && flow_ctrl == XON_SENT) {
-            flow_ctrl = SEND_XOFF;
-            UCSR0B |=  (1 << UDRIE0); // Force TX
-          } 
-        #endif
-        
-      }
-      //TODO: else alarm on overflow?
-  }
+    CDC_Device_ProcessControlRequest(&VirtualSerial_CDC_Interface);
 }
 
-
-void serial_reset_read_buffer() 
-{
-  serial_rx_buffer_tail = serial_rx_buffer_head;
-
-  #ifdef ENABLE_XONXOFF
-    flow_ctrl = XON_SENT;
-  #endif
+extern bool connected;
+void EVENT_CDC_Device_ControLineStateChanged(USB_ClassInfo_CDC_Device_t* const CDCInterfaceInfo) {
+    connected = (CDCInterfaceInfo->State.ControlLineStates.HostToDevice & CDC_CONTROL_LINE_OUT_DTR);
 }

@@ -104,8 +104,8 @@ void report_alarm_message(int8_t alarm_code)
       printPgmString(PSTR("Soft limit")); break;
       case ALARM_ABORT_CYCLE: 
       printPgmString(PSTR("Abort during cycle")); break;
-      case ALARM_PROBE_FAIL:
-      printPgmString(PSTR("Probe fail")); break;
+//      case ALARM_PROBE_FAIL:
+//      printPgmString(PSTR("Probe fail")); break;
       case ALARM_HOMING_FAIL:
       printPgmString(PSTR("Homing fail")); break;
     }
@@ -134,8 +134,8 @@ void report_feedback_message(uint8_t message_code)
     printPgmString(PSTR("Enabled")); break;
     case MESSAGE_DISABLED:
     printPgmString(PSTR("Disabled")); break; 
-    case MESSAGE_SAFETY_DOOR_AJAR:
-    printPgmString(PSTR("Check Door")); break;
+//    case MESSAGE_SAFETY_DOOR_AJAR:
+//    printPgmString(PSTR("Check Door")); break;
     case MESSAGE_PROGRAM_END:
     printPgmString(PSTR("Pgm End")); break;
     case MESSAGE_RESTORE_DEFAULTS:
@@ -264,22 +264,22 @@ void report_grbl_settings() {
 // Prints current probe parameters. Upon a probe command, these parameters are updated upon a
 // successful probe or upon a failed probe with the G38.3 without errors command (if supported). 
 // These values are retained until Grbl is power-cycled, whereby they will be re-zeroed.
-void report_probe_parameters()
-{
-  uint8_t i;
-  float print_position[N_AXIS];
- 
-  // Report in terms of machine position.
-  printPgmString(PSTR("[PRB:"));
-  for (i=0; i< N_AXIS; i++) {
-    print_position[i] = system_convert_axis_steps_to_mpos(sys.probe_position,i);
-    printFloat_CoordValue(print_position[i]);
-    if (i < (N_AXIS-1)) { printPgmString(PSTR(",")); }
-  }
-  printPgmString(PSTR(":"));
-  print_uint8_base10(sys.probe_succeeded);
-  printPgmString(PSTR("]\r\n"));
-}
+//void report_probe_parameters()
+//{
+//  uint8_t i;
+//  float print_position[N_AXIS];
+//
+//  // Report in terms of machine position.
+//  printPgmString(PSTR("[PRB:"));
+//  for (i=0; i< N_AXIS; i++) {
+//    print_position[i] = system_convert_axis_steps_to_mpos(sys.probe_position,i);
+//    printFloat_CoordValue(print_position[i]);
+//    if (i < (N_AXIS-1)) { printPgmString(PSTR(",")); }
+//  }
+//  printPgmString(PSTR(":"));
+//  print_uint8_base10(sys.probe_succeeded);
+//  printPgmString(PSTR("]\r\n"));
+//}
 
 
 // Prints Grbl NGC parameters (coordinate offsets, probing)
@@ -311,10 +311,10 @@ void report_ngc_parameters()
     if (i < (N_AXIS-1)) { printPgmString(PSTR(",")); }
     else { printPgmString(PSTR("]\r\n")); }
   } 
-  printPgmString(PSTR("[TLO:")); // Print tool length offset value
-  printFloat_CoordValue(gc_state.tool_length_offset);
-  printPgmString(PSTR("]\r\n"));
-  report_probe_parameters(); // Print probe parameters. Not persistent in memory.
+//  printPgmString(PSTR("[TLO:")); // Print tool length offset value
+//  printFloat_CoordValue(gc_state.tool_length_offset);
+//  printPgmString(PSTR("]\r\n"));
+//  report_probe_parameters(); // Print probe parameters. Not persistent in memory.
 }
 
 
@@ -364,13 +364,13 @@ void report_gcode_modes()
     case SPINDLE_DISABLE : printPgmString(PSTR(" M5")); break;
   }
   
-  switch (gc_state.modal.coolant) {
-    case COOLANT_DISABLE : printPgmString(PSTR(" M9")); break;
-    case COOLANT_FLOOD_ENABLE : printPgmString(PSTR(" M8")); break;
-    #ifdef ENABLE_M7
-      case COOLANT_MIST_ENABLE : printPgmString(PSTR(" M7")); break;
-    #endif
-  }
+//  switch (gc_state.modal.coolant) {
+//    case COOLANT_DISABLE : printPgmString(PSTR(" M9")); break;
+//    case COOLANT_FLOOD_ENABLE : printPgmString(PSTR(" M8")); break;
+//    #ifdef ENABLE_M7
+//      case COOLANT_MIST_ENABLE : printPgmString(PSTR(" M7")); break;
+//    #endif
+//  }
   
   printPgmString(PSTR(" T"));
   print_uint8_base10(gc_state.tool);
@@ -380,7 +380,7 @@ void report_gcode_modes()
   
   #ifdef VARIABLE_SPINDLE
     printPgmString(PSTR(" S"));
-    printFloat_RateValue(gc_state.spindle_speed);
+    print_uint8_base10(gc_state.spindle_speed);
   #endif
 
   printPgmString(PSTR("]\r\n"));
@@ -438,7 +438,7 @@ void report_realtime_status()
     case STATE_HOMING: printPgmString(PSTR("<Home")); break;
     case STATE_ALARM: printPgmString(PSTR("<Alarm")); break;
     case STATE_CHECK_MODE: printPgmString(PSTR("<Check")); break;
-    case STATE_SAFETY_DOOR: printPgmString(PSTR("<Door")); break;
+    //case STATE_SAFETY_DOOR: printPgmString(PSTR("<Door")); break;
   }
  
   // If reporting a position, convert the current step count (current_position) to millimeters.
@@ -461,7 +461,7 @@ void report_realtime_status()
     for (idx=0; idx< N_AXIS; idx++) {
       // Apply work coordinate offsets and tool length offset to current position.
       print_position[idx] -= gc_state.coord_system[idx]+gc_state.coord_offset[idx];
-      if (idx == TOOL_LENGTH_OFFSET_AXIS) { print_position[idx] -= gc_state.tool_length_offset; }    
+      //if (idx == TOOL_LENGTH_OFFSET_AXIS) { print_position[idx] -= gc_state.tool_length_offset; }
       printFloat_CoordValue(print_position[idx]);
       if (idx < (N_AXIS-1)) { printPgmString(PSTR(",")); }
     }
@@ -474,10 +474,10 @@ void report_realtime_status()
   }
 
   // Report serial read buffer status
-  if (bit_istrue(settings.status_report_mask,BITFLAG_RT_STATUS_SERIAL_RX)) {
-    printPgmString(PSTR(",RX:"));
-    print_uint8_base10(serial_get_rx_buffer_count());
-  }
+//  if (bit_istrue(settings.status_report_mask,BITFLAG_RT_STATUS_SERIAL_RX)) {
+//    printPgmString(PSTR(",RX:"));
+//    print_uint8_base10(serial_get_rx_buffer_count());
+//  }
     
   #ifdef USE_LINE_NUMBERS
     // Report current line number

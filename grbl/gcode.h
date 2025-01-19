@@ -149,11 +149,11 @@ typedef struct {
   // uint8_t distance_arc; // {G91.1} NOTE: Don't track. Only default supported.
   uint8_t plane_select;    // {G17,G18,G19}
   // uint8_t cutter_comp;  // {G40} NOTE: Don't track. Only default supported.
-  uint8_t tool_length;     // {G43.1,G49}
+//  uint8_t tool_length;     // {G43.1,G49}
   uint8_t coord_select;    // {G54,G55,G56,G57,G58,G59}
   // uint8_t control;      // {G61} NOTE: Don't track. Only default supported.
   uint8_t program_flow;    // {M0,M1,M2,M30}
-  uint8_t coolant;         // {M7,M8,M9}
+//  uint8_t coolant;         // {M7,M8,M9}
   uint8_t spindle;         // {M3,M4,M5}
 } gc_modal_t;  
 
@@ -165,7 +165,7 @@ typedef struct {
   float p;         // G10 or dwell parameters
   // float q;      // G82 peck drilling
   float r;         // Arc radius
-  float s;         // Spindle speed
+  uint8_t s;         // Spindle speed
   uint8_t t;       // Tool selection
   float xyz[3];    // X,Y,Z Translational axes
 } gc_values_t;
@@ -174,7 +174,7 @@ typedef struct {
 typedef struct {
   gc_modal_t modal;
   
-  float spindle_speed;          // RPM
+  uint8_t spindle_speed;          // RPM
   float feed_rate;              // Millimeters/min
   uint8_t tool;                 // Tracks tool number. NOT USED.
   int32_t line_number;          // Last line number sent
@@ -185,7 +185,7 @@ typedef struct {
                                 // position in mm. Loaded from EEPROM when called.  
   float coord_offset[N_AXIS];   // Retains the G92 coordinate offset (work coordinates) relative to
                                 // machine zero in mm. Non-persistent. Cleared upon reset and boot.    
-  float tool_length_offset;     // Tracks tool length offset value when enabled.
+ // float tool_length_offset;     // Tracks tool length offset value when enabled.
 } parser_state_t;
 extern parser_state_t gc_state;
 
