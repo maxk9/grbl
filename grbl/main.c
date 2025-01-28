@@ -25,30 +25,27 @@
 // Declare system global variable structure
 system_t sys; 
 
-//heard beat
+//heard beat 15ms
 ISR(TIMER3_OVF_vect) {
     static uint8_t state = 0;
 
-    if (state == 1) {
-        TCNT3 = 45000;
-        LEDs_TurnOffLEDs(LEDS_LED1);
-    }
-    else if (state < 6) {
-        TCNT3 = 60000;
+    if (state > 15) {
         LEDs_ToggleLEDs(LEDS_LED1);
+        state = 0;
+    } else {
+        ++state;
     }
-    else state = 0;
-
-    ++state;
+    serial_tick();
+    TCNT3 = 35536; //set to 15ms overf
 }
 
 void setup_led_heard_beat() {
     LEDs_Init();
     LEDs_TurnOffLEDs(LEDS_ALL_LEDS);
     //use tmr3
-    //clk/1024  15.625 KHz
-    //clk/256  62.5 KHz 1.048 sec ovr 0xFFFF
-    TCCR3B = (1<<CS32);
+    //clk/8  2 MHz 32 msec ovf 0xFFFF
+    TCCR3B = (1<<CS31);
+    TCNT3 = 35536; //set to 15ms overf
     TIMSK3 |= 1<<TOIE3;
 }
 

@@ -418,68 +418,88 @@ void report_echo_line_received(char *line)
  // specific needs, but the desired real-time data report must be as short as possible. This is
  // requires as it minimizes the computational overhead and allows grbl to keep running smoothly, 
  // especially during g-code programs with fast, short line segments and high frequency reports (5-20Hz).
-void report_realtime_status()
-{
-  // **Under construction** Bare-bones status report. Provides real-time machine position relative to 
-  // the system power on location (0,0,0) and work coordinate position (G54 and G92 applied). Eventually
-  // to be added are distance to go on block, processed block id, and feed rate. Also a settings bitmask
-  // for a user to select the desired real-time data.
-  uint8_t idx;
-  int32_t current_position[N_AXIS]; // Copy current state of the system position variable
-  memcpy(current_position,sys.position,sizeof(sys.position));
-  float print_position[N_AXIS];
- 
-  // Report current machine state
-  switch (sys.state) {
-    case STATE_IDLE: printPgmString(PSTR("<Idle")); break;
-    case STATE_MOTION_CANCEL: // Report run state.
-    case STATE_CYCLE: printPgmString(PSTR("<Run")); break;
-    case STATE_HOLD: printPgmString(PSTR("<Hold")); break;
-    case STATE_HOMING: printPgmString(PSTR("<Home")); break;
-    case STATE_ALARM: printPgmString(PSTR("<Alarm")); break;
-    case STATE_CHECK_MODE: printPgmString(PSTR("<Check")); break;
-    //case STATE_SAFETY_DOOR: printPgmString(PSTR("<Door")); break;
-  }
- 
-  // If reporting a position, convert the current step count (current_position) to millimeters.
-  if (bit_istrue(settings.status_report_mask,(BITFLAG_RT_STATUS_MACHINE_POSITION | BITFLAG_RT_STATUS_WORK_POSITION))) {
-    system_convert_array_steps_to_mpos(print_position,current_position);
-  }
-  
-  // Report machine position
-  if (bit_istrue(settings.status_report_mask,BITFLAG_RT_STATUS_MACHINE_POSITION)) {
-    printPgmString(PSTR(",MPos:")); 
-    for (idx=0; idx< N_AXIS; idx++) {
-      printFloat_CoordValue(print_position[idx]);
-      if (idx < (N_AXIS-1)) { printPgmString(PSTR(",")); }
-    }
-  }
-  
-  // Report work position
-  if (bit_istrue(settings.status_report_mask,BITFLAG_RT_STATUS_WORK_POSITION)) {
-    printPgmString(PSTR(",WPos:")); 
-    for (idx=0; idx< N_AXIS; idx++) {
-      // Apply work coordinate offsets and tool length offset to current position.
-      print_position[idx] -= gc_state.coord_system[idx]+gc_state.coord_offset[idx];
-      //if (idx == TOOL_LENGTH_OFFSET_AXIS) { print_position[idx] -= gc_state.tool_length_offset; }
-      printFloat_CoordValue(print_position[idx]);
-      if (idx < (N_AXIS-1)) { printPgmString(PSTR(",")); }
-    }
-  }
-        
-  // Returns the number of active blocks are in the planner buffer.
-  if (bit_istrue(settings.status_report_mask,BITFLAG_RT_STATUS_PLANNER_BUFFER)) {
-    printPgmString(PSTR(",Buf:"));
-    print_uint8_base10(plan_get_block_buffer_count());
-  }
+void report_realtime_status() {
+    // **Under construction** Bare-bones status report. Provides real-time machine position relative to
+    // the system power on location (0,0,0) and work coordinate position (G54 and G92 applied). Eventually
+    // to be added are distance to go on block, processed block id, and feed rate. Also a settings bitmask
+    // for a user to select the desired real-time data.
+    uint8_t idx;
+    int32_t current_position[N_AXIS + 1] = {0.0}; // Copy current state of the system position variable
+    memcpy(current_position, sys.position, sizeof(sys.position));
+    float print_position[N_AXIS + 1] = {0.0};
 
-  // Report serial read buffer status
+    // Report current machine state
+    switch (sys.state) {
+    case STATE_IDLE:
+        printPgmString(PSTR("<Idle"));
+        break;
+    case STATE_MOTION_CANCEL: // Report run state.
+    case STATE_CYCLE:
+        printPgmString(PSTR("<Run"));
+        break;
+    case STATE_HOLD:
+        printPgmString(PSTR("<Hold"));
+        break;
+    case STATE_HOMING:
+        printPgmString(PSTR("<Home"));
+        break;
+    case STATE_ALARM:
+        printPgmString(PSTR("<Alarm"));
+        break;
+    case STATE_CHECK_MODE:
+        printPgmString(PSTR("<Check"));
+        break;
+        //case STATE_SAFETY_DOOR: printPgmString(PSTR("<Door")); break;
+    }
+
+    // If reporting a position, convert the current step count (current_position) to millimeters.
+    if (bit_istrue(settings.status_report_mask, (BITFLAG_RT_STATUS_MACHINE_POSITION | BITFLAG_RT_STATUS_WORK_POSITION))) {
+        //system_convert_array_steps_to_mpos(print_position, current_position);
+        uint8_t idx;
+        for (idx = 0; idx < N_AXIS; idx++) {
+            print_position[idx] = system_convert_axis_steps_to_mpos(current_position, idx);
+        }
+    }
+
+    // Report machine position laser GRBL support only 3 axis position
+    if (bit_istrue(settings.status_report_mask, BITFLAG_RT_STATUS_MACHINE_POSITION)) {
+        printPgmString(PSTR(",MPos:"));
+        for (idx = 0; idx < N_AXIS + 1; idx++) {
+            printFloat_CoordValue(print_position[idx]);
+            if (idx < (N_AXIS + 1 - 1)) {
+                printPgmString(PSTR(","));
+            }
+        }
+    }
+
+    // Report work position
+    if (bit_istrue(settings.status_report_mask, BITFLAG_RT_STATUS_WORK_POSITION)) {
+        printPgmString(PSTR(",WPos:"));
+        for (idx = 0; idx < N_AXIS; idx++) {
+            // Apply work coordinate offsets and tool length offset to current position.
+            print_position[idx] -= gc_state.coord_system[idx] + gc_state.coord_offset[idx];
+            //if (idx == TOOL_LENGTH_OFFSET_AXIS) { print_position[idx] -= gc_state.tool_length_offset; }
+            printFloat_CoordValue(print_position[idx]);
+            if (idx < (N_AXIS)) {
+                printPgmString(PSTR(","));
+            }
+        }
+        printFloat_CoordValue(print_position[idx]);
+    }
+
+    // Returns the number of active blocks are in the planner buffer.
+    if (bit_istrue(settings.status_report_mask, BITFLAG_RT_STATUS_PLANNER_BUFFER)) {
+        printPgmString(PSTR(",Buf:"));
+        print_uint8_base10(plan_get_block_buffer_count());
+    }
+
+    // Report serial read buffer status
 //  if (bit_istrue(settings.status_report_mask,BITFLAG_RT_STATUS_SERIAL_RX)) {
 //    printPgmString(PSTR(",RX:"));
 //    print_uint8_base10(serial_get_rx_buffer_count());
 //  }
-    
-  #ifdef USE_LINE_NUMBERS
+
+#ifdef USE_LINE_NUMBERS
     // Report current line number
     printPgmString(PSTR(",Ln:")); 
     int32_t ln=0;
@@ -489,22 +509,22 @@ void report_realtime_status()
     } 
     printInteger(ln);
   #endif
-    
-  #ifdef REPORT_REALTIME_RATE
+
+#ifdef REPORT_REALTIME_RATE
     // Report realtime rate 
     printPgmString(PSTR(",F:")); 
     printFloat_RateValue(st_get_realtime_rate());
   #endif    
-  
-  if (bit_istrue(settings.status_report_mask,BITFLAG_RT_STATUS_LIMIT_PINS)) {
-    printPgmString(PSTR(",Lim:"));
-    print_unsigned_int8(limits_get_state(),2,N_AXIS);
-  }
-  
-  #ifdef REPORT_CONTROL_PIN_STATE 
+
+    if (bit_istrue(settings.status_report_mask, BITFLAG_RT_STATUS_LIMIT_PINS)) {
+        printPgmString(PSTR(",Lim:"));
+        print_unsigned_int8(limits_get_state(), 2, 1);
+    }
+
+#ifdef REPORT_CONTROL_PIN_STATE
     printPgmString(PSTR(",Ctl:"));
     print_uint8_base2(CONTROL_PIN & CONTROL_MASK);
   #endif
-  
-  printPgmString(PSTR(">\r\n"));
+
+    printPgmString(PSTR(">\r\n"));
 }

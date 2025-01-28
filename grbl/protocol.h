@@ -53,5 +53,6 @@ void protocol_auto_cycle_start();
 
 // Block until all buffered steps are executed
 void protocol_buffer_synchronize();
+uint8_t protocol_check_cmds(uint8_t c);
 
 #endif

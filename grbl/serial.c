@@ -76,26 +76,9 @@ void serial_init()
 
 //extern uint8_t cnts_isr_tmr4;
 
-uint8_t serial_tick(uint8_t *c) {
-    uint8_t bytesAvailable;
-
+void serial_tick() {
     CDC_Device_USBTask(&VirtualSerial_CDC_Interface);
     USB_USBTask();
-
-    bytesAvailable = CDC_Device_BytesReceived(&VirtualSerial_CDC_Interface);
-    if (bytesAvailable) {
-        *c = CDC_Device_ReceiveByte(&VirtualSerial_CDC_Interface);
-        switch ((char)*c) {
-        case CMD_STATUS_REPORT: bit_true_atomic(sys_rt_exec_state, EXEC_STATUS_REPORT); return 0; // Set as true
-        case CMD_CYCLE_START:   bit_true_atomic(sys_rt_exec_state, EXEC_CYCLE_START); return 0; // Set as true
-        case CMD_FEED_HOLD:     bit_true_atomic(sys_rt_exec_state, EXEC_FEED_HOLD); return 0; // Set as true
-        case CMD_SAFETY_DOOR:   //bit_true_atomic(sys_rt_exec_state, EXEC_SAFETY_DOOR); // Set as true
-            return 0;
-        case CMD_RESET:         mc_reset(); return 0; // Call motion control reset routine.
-        default: return bytesAvailable;
-        }
-    }
-    return 0;
 }
 
 void serial_write(uint8_t data) {

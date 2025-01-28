@@ -34,11 +34,4 @@ void spindle_run(uint8_t direction, uint8_t rpm);
 // Kills spindle.
 void spindle_stop();
 
-//enum pen_state_t
-//{
-//    PEN_ZERO = 0,
-//    PEN_UP = 0,
-//    PEN_DOWN = 0,
-//};
-
 #endif

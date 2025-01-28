@@ -92,7 +92,7 @@ volatile uint8_t sys_rt_exec_alarm;  // Global realtime executor bitflag variabl
 void system_init();
 
 // Returns if safety door is open or closed, based on pin state.
-uint8_t system_check_safety_door_ajar();
+//uint8_t system_check_safety_door_ajar();
 
 // Executes an internal system command, defined as a string starting with a '$'
 uint8_t system_execute_line(char *line);

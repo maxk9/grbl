@@ -62,12 +62,13 @@ void pen_init() {
     //OCR4A = 250; //0 0.5-1 ms
     OCR4A = ZERO_CMPR; //90 1.5 ms
     //OCR4A = 237; //180 2-2.5ms
-    START_CNT4;
-    spindle_run(SPINDLE_ENABLE_CW, 90);  // define initial position as 0 value
+//    START_CNT4;
+//    spindle_run(SPINDLE_ENABLE_CW, 90);  // define initial position as 0 value
+    STOP_CNT4;
 }
 
 void spindle_stop() {
-   // STOP_CNT4;
+    STOP_CNT4;
 }
 
 void spindle_run(uint8_t direction, uint8_t rpm) {
@@ -86,8 +87,8 @@ void spindle_run(uint8_t direction, uint8_t rpm) {
         else {
             OCR4A = POS_UP;
         }
-        //START_CNT4;
     }
+    START_CNT4;
 }
 
 //void spindle_set_state(pen_state_t state) {

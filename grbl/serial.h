@@ -42,6 +42,6 @@ uint8_t serial_read();
 // Reset and empty data in read buffer. Used by e-stop and reset.
 void serial_reset_read_buffer();
 
-uint8_t serial_tick(uint8_t *c);
+void serial_tick();
 
 #endif

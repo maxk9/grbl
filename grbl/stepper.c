@@ -72,14 +72,14 @@ typedef struct {
     uint8_t prescaler;      // Without AMASS, a prescaler is required to adjust for slow timing.
   #endif
 } segment_t;
-static segment_t segment_buffer[SEGMENT_BUFFER_SIZE];
+//static segment_t segment_buffer[SEGMENT_BUFFER_SIZE];
+segment_t segment_buffer[SEGMENT_BUFFER_SIZE];
 
 // Stepper ISR data struct. Contains the running data for the main stepper ISR.
 typedef struct {
   // Used by the bresenham line algorithm
   uint32_t counter_x,        // Counter variables for the bresenham line tracer
-           counter_y, 
-           counter_z;
+           counter_y;
   #ifdef STEP_PULSE_DELAY
     uint8_t step_bits;  // Stores out_bits output to complete the step pulse delay
   #endif
@@ -136,7 +136,8 @@ typedef struct {
   float accelerate_until; // Acceleration ramp end measured from end of block (mm)
   float decelerate_after; // Deceleration ramp start measured from end of block (mm)
 } st_prep_t;
-static st_prep_t prep;
+//static st_prep_t prep;
+st_prep_t prep;
 
 
 /*    BLOCK VELOCITY PROFILE DEFINITION 
@@ -188,8 +189,8 @@ void st_wake_up()
 
   if (sys.state & (STATE_CYCLE | STATE_HOMING)){
     // Initialize stepper output bits
-    st.dir_outbits = dir_port_invert_mask; 
-    st.step_outbits = step_port_invert_mask;
+//    st.dir_outbits = dir_port_invert_mask;
+//    st.step_outbits = step_port_invert_mask;
     
     // Initialize step pulse timing from settings. Here to ensure updating after re-writing.
     #ifdef STEP_PULSE_DELAY
@@ -279,21 +280,18 @@ void st_go_idle()
 // int8 variables and update position counters only when a segment completes. This can get complicated 
 // with probing and homing cycles that require true real-time positions.
 ISR(TIMER1_COMPA_vect)
-{        
+{
 // SPINDLE_ENABLE_PORT ^= 1<<SPINDLE_ENABLE_BIT; // Debug: Used to time ISR
   if (busy) { return; } // The busy-flag is used to avoid reentering this interrupt
   
   // Set the direction pins a couple of nanoseconds before we step the steppers
+  //if()
   DIRECTION_PORT = (DIRECTION_PORT & ~DIRECTION_MASK) | (st.dir_outbits & DIRECTION_MASK);
 
-  // Then pulse the stepping pins
-  #ifdef STEP_PULSE_DELAY
-    st.step_bits = (STEP_PORT & ~STEP_MASK) | st.step_outbits; // Store out_bits to prevent overwriting.
-  #else  // Normal operation
-    //STEP_PORT = (STEP_PORT & ~STEP_MASK) | st.step_outbits;
-    STEPPING_MOTA = (STEPPING_MOTA & ~(1 << A_STEP_BIT)) | (st.step_outbits & 1 ? 1 << A_STEP_BIT : 0);
-    STEPPING_MOTB = (STEPPING_MOTB & ~(1 << B_STEP_BIT)) | (st.step_outbits & 2 ? 1 << B_STEP_BIT : 0);
-  #endif  
+ // Normal operation
+  //STEP_PORT = (STEP_PORT & ~STEP_MASK) | st.step_outbits;
+  STEPPING_MOTA = (STEPPING_MOTA & ~(1 << A_STEP_BIT)) | (st.step_outbits & 1 ? 1 << A_STEP_BIT : 0);
+  STEPPING_MOTB = (STEPPING_MOTB & ~(1 << B_STEP_BIT)) | (st.step_outbits & 2 ? 1 << B_STEP_BIT : 0);
 
   // Enable step pulse reset timer so that The Stepper Port Reset Interrupt can reset the signal after
   // exactly settings.pulse_microseconds microseconds, independent of the main Timer1 prescaler.
@@ -326,9 +324,9 @@ ISR(TIMER1_COMPA_vect)
         st.exec_block = &st_block_buffer[st.exec_block_index];
         
         // Initialize Bresenham line and distance counters
-        st.counter_x = st.counter_y = st.counter_z = (st.exec_block->step_event_count >> 1);
+        st.counter_x = st.counter_y = (st.exec_block->step_event_count >> 1);
       }
-      st.dir_outbits = st.exec_block->direction_bits ^ dir_port_invert_mask; 
+      st.dir_outbits = st.exec_block->direction_bits;// ^ dir_port_invert_mask;
 
       #ifdef ADAPTIVE_MULTI_AXIS_STEP_SMOOTHING
         // With AMASS enabled, adjust Bresenham axis increment counters according to AMASS level.
@@ -375,17 +373,6 @@ ISR(TIMER1_COMPA_vect)
     if (st.exec_block->direction_bits & (1<<Y_DIRECTION_BIT)) { sys.position[Y_AXIS]--; }
     else { sys.position[Y_AXIS]++; }
   }
-//  #ifdef ADAPTIVE_MULTI_AXIS_STEP_SMOOTHING
-//    st.counter_z += st.steps[Z_AXIS];
-//  #else
-//    st.counter_z += st.exec_block->steps[Z_AXIS];
-//  #endif
-//  if (st.counter_z > st.exec_block->step_event_count) {
-//    st.step_outbits |= 4;
-//    st.counter_z -= st.exec_block->step_event_count;
-//    if (st.exec_block->direction_bits & (1<<Z_DIRECTION_BIT)) { sys.position[Z_AXIS]--; }
-//    else { sys.position[Z_AXIS]++; }
-//  }
 
   // During a homing cycle, lock out and prevent desired axes from moving.
   if (sys.state == STATE_HOMING) { st.step_outbits &= sys.homing_axis_lock; }   
@@ -397,7 +384,7 @@ ISR(TIMER1_COMPA_vect)
     if ( ++segment_buffer_tail == SEGMENT_BUFFER_SIZE) { segment_buffer_tail = 0; }
   }
 
-  st.step_outbits ^= step_port_invert_mask;  // Apply step port invert mask    
+  //st.step_outbits ^= step_port_invert_mask;  // Apply step port invert mask
   busy = false;
 // SPINDLE_ENABLE_PORT ^= 1<<SPINDLE_ENABLE_BIT; // Debug: Used to time ISR
 }

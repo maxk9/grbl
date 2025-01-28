@@ -64,6 +64,21 @@ extern USB_ClassInfo_CDC_Device_t VirtualSerial_CDC_Interface;
 /* 
   GRBL PRIMARY LOOP:
 */
+
+uint8_t protocol_check_cmds(uint8_t c) {
+    uint8_t ret = 1;
+
+    switch(c) {
+    case CMD_STATUS_REPORT: bit_true_atomic(sys_rt_exec_state, EXEC_STATUS_REPORT); break; // Set as true
+    case CMD_CYCLE_START:   bit_true_atomic(sys_rt_exec_state, EXEC_CYCLE_START); break; // Set as true
+    case CMD_FEED_HOLD:     bit_true_atomic(sys_rt_exec_state, EXEC_FEED_HOLD); break; // Set as true
+    case CMD_RESET:         mc_reset(); break; // Call motion control reset routine.
+    default: ret = 0; break; // have not a command
+    }
+
+    return ret;
+}
+
 void protocol_main_loop()
 {
   // ------------------------------------------------------------
@@ -108,7 +123,8 @@ void protocol_main_loop()
           was_connected = false;
       }
 
-      bytesAvailable = serial_tick(&c); // ... process the serial protocol
+      bytesAvailable = CDC_Device_BytesReceived(&VirtualSerial_CDC_Interface);
+
       // Process one line of incoming serial data, as the data becomes available. Performs an
       // initial filtering by removing spaces and comments and capitalizing all letters.
 
@@ -120,56 +136,57 @@ void protocol_main_loop()
       // seperate task to be shared by the g-code parser and Grbl's system commands.
 
       while (bytesAvailable--) {
-
-          if ((c == '\n') || (c == '\r')) { // End of line reached
-              line[char_counter] = 0; // Set string termination character.
-              protocol_execute_line(line); // Line is complete. Execute it!
-              comment = COMMENT_NONE;
-              char_counter = 0;
-          } else {
-              if (comment != COMMENT_NONE) {
-                  // Throw away all comment characters
-                  if (c == ')') {
-                      // End of comment. Resume line. But, not if semicolon type comment.
-                      if (comment == COMMENT_TYPE_PARENTHESES) { comment = COMMENT_NONE; }
-                  }
-              } else {
-                  if (c <= ' ') {
-                      // Throw away whitepace and control characters
-                  } else if (c == '/') {
-                      // Block delete NOT SUPPORTED. Ignore character.
-                      // NOTE: If supported, would simply need to check the system if block delete is enabled.
-                  } else if (c == '(') {
-                      // Enable comments flag and ignore all characters until ')' or EOL.
-                      // NOTE: This doesn't follow the NIST definition exactly, but is good enough for now.
-                      // In the future, we could simply remove the items within the comments, but retain the
-                      // comment control characters, so that the g-code parser can error-check it.
-                      comment = COMMENT_TYPE_PARENTHESES;
-                  } else if (c == ';') {
-                      // NOTE: ';' comment to EOL is a LinuxCNC definition. Not NIST.
-                      comment = COMMENT_TYPE_SEMICOLON;
-
-                      // TODO: Install '%' feature
-                      // } else if (c == '%') {
-                      // Program start-end percent sign NOT SUPPORTED.
-                      // NOTE: This maybe installed to tell Grbl when a program is running vs manual input,
-                      // where, during a program, the system auto-cycle start will continue to execute
-                      // everything until the next '%' sign. This will help fix resuming issues with certain
-                      // functions that empty the planner buffer to execute its task on-time.
-
-                  } else if (char_counter >= (LINE_BUFFER_SIZE-1)) {
-                      // Detect line buffer overflow. Report error and reset line buffer.
-                      report_status_message(STATUS_OVERFLOW);
-                      comment = COMMENT_NONE;
-                      char_counter = 0;
-                  } else if (c >= 'a' && c <= 'z') { // Upcase lowercase
-                      line[char_counter++] = c-'a'+'A';
-                  } else {
-                      line[char_counter++] = c;
-                  }
-              }
-          }
           c = CDC_Device_ReceiveByte(&VirtualSerial_CDC_Interface);
+          if (!protocol_check_cmds(c)) {
+                if ((c == '\n') || (c == '\r')) { // End of line reached
+                    line[char_counter] = 0; // Set string termination character.
+                    protocol_execute_line(line); // Line is complete. Execute it!
+                    comment = COMMENT_NONE;
+                    char_counter = 0;
+                } else {
+                    if (comment != COMMENT_NONE) {
+                        // Throw away all comment characters
+                        if (c == ')') {
+                            // End of comment. Resume line. But, not if semicolon type comment.
+                            if (comment == COMMENT_TYPE_PARENTHESES) { comment = COMMENT_NONE; }
+                        }
+                    } else {
+                        if (c <= ' ') {
+                            // Throw away whitepace and control characters
+                        } else if (c == '/') {
+                            // Block delete NOT SUPPORTED. Ignore character.
+                            // NOTE: If supported, would simply need to check the system if block delete is enabled.
+                        } else if (c == '(') {
+                            // Enable comments flag and ignore all characters until ')' or EOL.
+                            // NOTE: This doesn't follow the NIST definition exactly, but is good enough for now.
+                            // In the future, we could simply remove the items within the comments, but retain the
+                            // comment control characters, so that the g-code parser can error-check it.
+                            comment = COMMENT_TYPE_PARENTHESES;
+                        } else if (c == ';') {
+                            // NOTE: ';' comment to EOL is a LinuxCNC definition. Not NIST.
+                            comment = COMMENT_TYPE_SEMICOLON;
+
+                            // TODO: Install '%' feature
+                            // } else if (c == '%') {
+                            // Program start-end percent sign NOT SUPPORTED.
+                            // NOTE: This maybe installed to tell Grbl when a program is running vs manual input,
+                            // where, during a program, the system auto-cycle start will continue to execute
+                            // everything until the next '%' sign. This will help fix resuming issues with certain
+                            // functions that empty the planner buffer to execute its task on-time.
+
+                        } else if (char_counter >= (LINE_BUFFER_SIZE-1)) {
+                            // Detect line buffer overflow. Report error and reset line buffer.
+                            report_status_message(STATUS_OVERFLOW);
+                            comment = COMMENT_NONE;
+                            char_counter = 0;
+                        } else if (c >= 'a' && c <= 'z') { // Upcase lowercase
+                            line[char_counter++] = c-'a'+'A';
+                        } else {
+                            line[char_counter++] = c;
+                        }
+                    }
+                }
+          }
       }
 
       // If there are no more characters in the serial read buffer to be processed and executed,
@@ -180,6 +197,7 @@ void protocol_main_loop()
       protocol_execute_realtime();  // Runtime command check point.
       if (sys.abort) { return; } // Bail to main() program loop to reset system.
 
+     // serial_tick();
   }
   
   return; /* Never reached */
@@ -200,7 +218,7 @@ void protocol_main_loop()
 void protocol_execute_realtime()
 {
   uint8_t rt_exec; // Temp variable to avoid calling volatile multiple times.
-  uint8_t c;
+  uint8_t c, bytesAvailable;
   do { // If system is suspended, suspend loop restarts here.
     
   // Check and execute alarms. 
@@ -223,8 +241,13 @@ void protocol_execute_realtime()
     if (rt_exec & EXEC_CRITICAL_EVENT) {
       report_feedback_message(MESSAGE_CRITICAL_EVENT);
       bit_false_atomic(sys_rt_exec_state,EXEC_RESET); // Disable any existing reset
-      do { 
-        //  serial_tick(&c);
+      do {
+          bytesAvailable = CDC_Device_BytesReceived(&VirtualSerial_CDC_Interface);
+          while(bytesAvailable--) {
+              c = CDC_Device_ReceiveByte(&VirtualSerial_CDC_Interface);
+              protocol_check_cmds(c);
+          }
+         // serial_tick();
         // Nothing. Block EVERYTHING until user issues reset or power cycles. Hard limits
         // typically occur while unattended or not paying attention. Gives the user time
         // to do what is needed before resetting, like killing the incoming stream. The 
@@ -353,7 +376,7 @@ void protocol_execute_realtime()
         // Hold complete. Set to indicate ready to resume.  Remain in HOLD or DOOR states until user
         // has issued a resume command or reset.
 //        if (sys.suspend & SUSPEND_ENERGIZE) { // De-energize system if safety door has been opened.
-//       //   spindle_stop();
+          spindle_stop();
 //          //coolant_stop();
 //        }
         bit_true(sys.suspend,SUSPEND_ENABLE_READY);
@@ -381,7 +404,7 @@ void protocol_execute_realtime()
 //      }
 //    }
 //  }
-  //serial_tick(&c);
+
 
   } while(sys.suspend); // Check for system suspend state before exiting.
   
