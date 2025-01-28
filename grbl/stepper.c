@@ -190,7 +190,7 @@ void st_wake_up()
   if (sys.state & (STATE_CYCLE | STATE_HOMING)){
     // Initialize stepper output bits
     st.dir_outbits = ((1<<X_DIRECTION_BIT)|(1<<Y_DIRECTION_BIT));
-//    st.step_outbits = step_port_invert_mask;
+    st.step_outbits = 0;
     
     // Initialize step pulse timing from settings. Here to ensure updating after re-writing.
     #ifdef STEP_PULSE_DELAY
@@ -200,7 +200,7 @@ void st_wake_up()
       OCR0A = -(((settings.pulse_microseconds)*TICKS_PER_MICROSECOND) >> 3);
     #else // Normal operation
       // Set step pulse time. Ad hoc computation from oscilloscope. Uses two's complement.
-      st.step_pulse_time = -(((settings.pulse_microseconds-2)*TICKS_PER_MICROSECOND) >> 3);
+      st.step_pulse_time = -(settings.pulse_microseconds >> 2);
     #endif
 
     // Enable Stepper Driver Interrupt
@@ -285,11 +285,6 @@ ISR(TIMER1_COMPA_vect)
   if (busy) { return; } // The busy-flag is used to avoid reentering this interrupt
   
   // Set the direction pins a couple of nanoseconds before we step the steppers
-  if(((st.dir_outbits == ((1<<X_DIRECTION_BIT)|(1<<Y_DIRECTION_BIT))) || (st.dir_outbits == 0)))
-      st.dir_outbits ^= ((1<<X_DIRECTION_BIT)|(1<<Y_DIRECTION_BIT));
-  else if ()
-      st.dir_outbits ^= ((1<<X_DIRECTION_BIT)|(1<<Y_DIRECTION_BIT));
-
   DIRECTION_PORT = (DIRECTION_PORT & ~DIRECTION_MASK) | (st.dir_outbits & DIRECTION_MASK);
 
  // Normal operation
@@ -300,7 +295,7 @@ ISR(TIMER1_COMPA_vect)
   // Enable step pulse reset timer so that The Stepper Port Reset Interrupt can reset the signal after
   // exactly settings.pulse_microseconds microseconds, independent of the main Timer1 prescaler.
   TCNT0 = st.step_pulse_time; // Reload Timer0 counter
-  TCCR0B = (1<<CS01); // Begin Timer0. Full speed, 1/8 prescaler
+  TCCR0B = (1<<CS01)|(1<<CS00); // Begin Timer0. Full speed, 250KHz  4us - tick
 
   busy = true;
   sei(); // Re-enable interrupts to allow Stepper Port Reset Interrupt to fire on-time. 
@@ -402,22 +397,10 @@ ISR(TIMER1_COMPA_vect)
 ISR(TIMER0_OVF_vect)
 {
   // Reset stepping pins (leave the direction pins)
-    STEPPING_MOTA = STEPPING_MOTA & ~(1 << A_STEP_BIT) | (step_port_invert_mask & 1 ? 1 << A_STEP_BIT : 0);
-    STEPPING_MOTB = STEPPING_MOTB & ~(1 << B_STEP_BIT) | (step_port_invert_mask & 2 ? 1 << B_STEP_BIT : 0);
+    STEPPING_MOTA = STEPPING_MOTA & ~(1 << A_STEP_BIT);
+    STEPPING_MOTB = STEPPING_MOTB & ~(1 << B_STEP_BIT);
     TCCR0B = 0; // Disable Timer0 to prevent re-entering this interrupt when it's not needed.
 }
-#ifdef STEP_PULSE_DELAY
-  // This interrupt is used only when STEP_PULSE_DELAY is enabled. Here, the step pulse is
-  // initiated after the STEP_PULSE_DELAY time period has elapsed. The ISR TIMER2_OVF interrupt
-  // will then trigger after the appropriate settings.pulse_microseconds, as in normal operation.
-  // The new timing between direction, step pulse, and step complete events are setup in the
-  // st_wake_up() routine.
-  ISR(TIMER0_COMPA_vect) 
-  { 
-    STEP_PORT = st.step_bits; // Begin step pulse.
-  }
-#endif
-
 
 // Generates the step and direction port invert masks used in the Stepper Interrupt Driver.
 void st_generate_step_dir_invert_masks()
