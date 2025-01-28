@@ -189,7 +189,7 @@ void st_wake_up()
 
   if (sys.state & (STATE_CYCLE | STATE_HOMING)){
     // Initialize stepper output bits
-//    st.dir_outbits = dir_port_invert_mask;
+    st.dir_outbits = ((1<<X_DIRECTION_BIT)|(1<<Y_DIRECTION_BIT));
 //    st.step_outbits = step_port_invert_mask;
     
     // Initialize step pulse timing from settings. Here to ensure updating after re-writing.
@@ -285,7 +285,11 @@ ISR(TIMER1_COMPA_vect)
   if (busy) { return; } // The busy-flag is used to avoid reentering this interrupt
   
   // Set the direction pins a couple of nanoseconds before we step the steppers
-  //if()
+  if(((st.dir_outbits == ((1<<X_DIRECTION_BIT)|(1<<Y_DIRECTION_BIT))) || (st.dir_outbits == 0)))
+      st.dir_outbits ^= ((1<<X_DIRECTION_BIT)|(1<<Y_DIRECTION_BIT));
+  else if ()
+      st.dir_outbits ^= ((1<<X_DIRECTION_BIT)|(1<<Y_DIRECTION_BIT));
+
   DIRECTION_PORT = (DIRECTION_PORT & ~DIRECTION_MASK) | (st.dir_outbits & DIRECTION_MASK);
 
  // Normal operation
@@ -326,7 +330,8 @@ ISR(TIMER1_COMPA_vect)
         // Initialize Bresenham line and distance counters
         st.counter_x = st.counter_y = (st.exec_block->step_event_count >> 1);
       }
-      st.dir_outbits = st.exec_block->direction_bits;// ^ dir_port_invert_mask;
+
+      st.dir_outbits = st.exec_block->direction_bits;
 
       #ifdef ADAPTIVE_MULTI_AXIS_STEP_SMOOTHING
         // With AMASS enabled, adjust Bresenham axis increment counters according to AMASS level.
@@ -343,10 +348,6 @@ ISR(TIMER1_COMPA_vect)
     }  
   }
   
-  
-  // Check probing state.
-  //probe_state_monitor();
-   
   // Reset step out bits.
   st.step_outbits = 0; 
 
@@ -373,9 +374,6 @@ ISR(TIMER1_COMPA_vect)
     if (st.exec_block->direction_bits & (1<<Y_DIRECTION_BIT)) { sys.position[Y_AXIS]--; }
     else { sys.position[Y_AXIS]++; }
   }
-
-  // During a homing cycle, lock out and prevent desired axes from moving.
-  if (sys.state == STATE_HOMING) { st.step_outbits &= sys.homing_axis_lock; }   
 
   st.step_count--; // Decrement step events count 
   if (st.step_count == 0) {

@@ -347,12 +347,12 @@ uint8_t gc_execute_line(char *line)
             case 'T': word_bit = WORD_T; break; // gc.values.t = int_value;
             case 'X': word_bit = WORD_X; gc_block.values.xyz[X_AXIS] = value; axis_words |= (1<<X_AXIS); break;
             case 'Y': word_bit = WORD_Y; gc_block.values.xyz[Y_AXIS] = value; axis_words |= (1<<Y_AXIS); break;
-            case 'Z': word_bit = WORD_Z; gc_block.values.xyz[Z_AXIS] = value; axis_words |= (1<<Z_AXIS); break;
+            case 'Z': break;
             default: FAIL(STATUS_GCODE_UNSUPPORTED_COMMAND);
             }
 
             // NOTE: Variable 'word_bit' is always assigned, if the non-command letter is valid.
-            if (bit_istrue(value_words,bit(word_bit))) { FAIL(STATUS_GCODE_WORD_REPEATED); } // [Word repeated]
+            //if (bit_istrue(value_words,bit(word_bit))) { FAIL(STATUS_GCODE_WORD_REPEATED); } // [Word repeated]
             // Check for invalid negative values for words F, N, P, T, and S.
             // NOTE: Negative value check is done here simply for code-efficiency.
             if ( bit(word_bit) & (bit(WORD_F)|bit(WORD_N)|bit(WORD_P)|bit(WORD_T)|bit(WORD_S)) ) {
